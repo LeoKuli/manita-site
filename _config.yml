@@ -1,0 +1,7 @@
+# GitHub Pages (Jekyll): publica só as páginas do site. O kit de agentes fica no repositório, fora do site.
+exclude:
+  - AGENTS.md
+  - CLAUDE.md
+  - GEMINI.md
+  - docs/
+  - scripts/
