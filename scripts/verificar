@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Comando único de "pronto" do manita-site: confere as duas páginas e o controle do conferidor. O mesmo no CI.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+py=python3; command -v python3 >/dev/null 2>&1 || py=python
+
+etapa() { printf '\n== %s ==\n' "$1"; }
+
+etapa "preparar"
+"$py" --version
+if [ "${1:-}" = "--preparar" ]; then exit 0; fi
+
+etapa "testar"
+"$py" -X utf8 scripts/conferir_paginas.py --controle
+"$py" -X utf8 scripts/conferir_paginas.py .
+
+etapa "validar"
+# Segredos e dado pessoal: o mesmo gitleaks do CI, nos commits ainda não publicados e nas mudanças locais (o
+# histórico inteiro não é varrido aqui: o CI varre o diff de cada PR; para o histórico, `gitleaks git .`).
+if command -v gitleaks >/dev/null 2>&1; then
+  cfg=(); [ -f .gitleaks.toml ] && cfg=(--config .gitleaks.toml)
+  base="$(git rev-parse -q --verify origin/HEAD 2>/dev/null || true)"
+  if [ -n "$base" ]; then
+    gitleaks git --no-banner --redact "${cfg[@]}" --log-opts="$base..HEAD" .
+  fi
+  gitleaks git --no-banner --redact "${cfg[@]}" --pre-commit .
+  gitleaks git --no-banner --redact "${cfg[@]}" --pre-commit --staged .
+else
+  echo "gitleaks: NÃO MEDIDO (não instalado; o CI roda)"
+fi
+conf="$(mktemp)"
+if curl -fsSL --max-time 20 -o "$conf" \
+    https://raw.githubusercontent.com/LeoKuli/agentes-padroes/main/scripts/conformidade.py; then
+  "$py" "$conf" --raiz .
+else
+  echo "conformidade: NÃO MEDIDO (sem rede; o CI roda)"
+fi
+rm -f "$conf"
